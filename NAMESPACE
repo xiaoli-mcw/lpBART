@@ -1,0 +1,8 @@
+useDynLib('REtry', .registration=TRUE)
+import(RcppEigen)
+importFrom(Rcpp, evalCpp)
+#exportPattern("^[[:alpha:]]+")
+importFrom(BART3, bartModelMatrix)
+importFrom(parallel, detectCores)
+importFrom(tools, psnice)
+export(plbart, mc.plbart)
