@@ -25,19 +25,22 @@
 #define TRDRAW(a, b) trdraw(a, b)
 #define TEDRAW(a, b) tedraw(a, b)
 #define BDRAW(a, b) bdraw(a, b)
+#define WTSDRAW(a, b) wtsdraw(a, b)
 
 RcppExport SEXP cplbart(
+   SEXP _type,          //1:fixed tau, 2:gamma prior, 3:discrete unif, 4:tgamma prior
    SEXP _in,            //number of observations in training data
    SEXP _ip,		//dimension of x
    SEXP _inp,		//number of observations in test data
    SEXP _ix,		//x, train,  pxn (transposed so rows are contiguous in memory)
-   SEXP _ixl,           //x, train, (p+1)xn, added 1 for linear beta_0
+   //SEXP _ixl,           //x, train, (p+1)xn, added 1 for linear beta_0
    SEXP _iy,		//y, train,  nx1
    SEXP _ixp,		//x, test, pxnp (transposed so rows are contiguous in memory)
-   SEXP _ixlp,          //x, test, (p+1)xnp, added 1 for linear beta_0
+   //SEXP _ixlp,          //x, test, (p+1)xnp, added 1 for linear beta_0
    SEXP _im,		//number of trees
    SEXP _inc,		//number of cut points
    SEXP _ind,		//number of kept draws (except for thinnning ..)
+   SEXP _ipreb,
    SEXP _iburn,		//number of burn-in draws skipped
    SEXP _ipower,
    SEXP _ibase,
@@ -65,24 +68,26 @@ RcppExport SEXP cplbart(
 
    //--------------------------------------------------
    //process args
+   int type = Rcpp::as<int>(_type);
    size_t n = Rcpp::as<int>(_in);
    size_t p = Rcpp::as<int>(_ip);
    size_t np = Rcpp::as<int>(_inp);
    Rcpp::NumericVector  xv(_ix);
    double *ix = &xv[0];
-   Rcpp::NumericVector xlv(_ixl);
-   double *ixl = &xlv[0];
+   //Rcpp::NumericVector xlv(_ixl);
+   //double *ixl = &xlv[0];
    Rcpp::IntegerVector  yv(_iy); // binary
    int *iy = &yv[0];
    Rcpp::NumericVector  xpv(_ixp);
    double *ixp = &xpv[0];
-   Rcpp::NumericVector xlpv(_ixlp);
-   double *ixlp = &xlpv[0];
+   //Rcpp::NumericVector xlpv(_ixlp);
+   //double *ixlp = &xlpv[0];
    size_t m = Rcpp::as<int>(_im);
    //size_t nc = Rcpp::as<int>(_inc);
    Rcpp::IntegerVector _nc(_inc);
    int *numcut = &_nc[0];
    size_t nd = Rcpp::as<int>(_ind);
+   size_t preburn = Rcpp::as<int>(_ipreb);
    size_t burn = Rcpp::as<int>(_iburn);
    double mybeta = Rcpp::as<double>(_ipower);
    double alpha = Rcpp::as<double>(_ibase);
@@ -123,8 +128,13 @@ RcppExport SEXP cplbart(
 */
    Rcpp::NumericMatrix trdraw(nkeeptrain,n);
    Rcpp::NumericMatrix tedraw(nkeeptest,np);
-   Rcpp::NumericMatrix bdraw(nkeeptrain,p+1);
+   Rcpp::NumericMatrix bdraw(nd+burn,p);
+   Rcpp::List botdraw(nd+burn);
+   Rcpp::NumericMatrix wtsdraw(nd+burn, 7);
    Rcpp::NumericVector sdraw(nd+burn);
+   Rcpp::NumericVector tadraw(nd+burn);
+   Rcpp::NumericVector tbdraw(nd+burn);
+   Rcpp::NumericVector nbots(nd+burn);
 //   Rcpp::List list_of_lists(nkeeptreedraws*treesaslists);
    Rcpp::NumericMatrix varprb(nkeeptreedraws,p);
    Rcpp::IntegerMatrix varcnt(nkeeptreedraws,p);
@@ -149,19 +159,22 @@ RcppExport SEXP cplbart(
 #define TRDRAW(a, b) trdraw[a][b]
 #define TEDRAW(a, b) tedraw[a][b]
 #define BDRAW(a, b) bdraw[a][b]
+#define WTSDRAW(a, b) wtsdraw[a][b]
 
 void cplbart(
+   int type,            //1:fixed tau, 2:gamma prior, 3:discrete unif, 4:tgamma prior
    size_t n,            //number of observations in training data
    size_t p,		//dimension of x
    size_t np,		//number of observations in test data
    double* ix,		//x, train,  pxn (transposed so rows are contiguous in memory)
-   double* ixl,
+   //double* ixl,
    int* iy,		//y, train,  nx1
    double* ixp,		//x, test, pxnp (transposed so rows are contiguous in memory)
-   double* ixlp,
+   //double* ixlp,
    size_t m,		//number of trees
    int *numcut, //size_t nc,		//number of cut points
    size_t nd,		//number of kept draws (except for thinnning ..)
+   size_t preburn,
    size_t burn,		//number of burn-in draws skipped
    double mybeta,
    double alpha,
@@ -191,18 +204,21 @@ void cplbart(
 */
    double* _trdraw,
    double* _tedraw,
-   double* _bdraw
+   double* _bdraw,
+   double* _wtsdraw
 )
 {
    //return data structures (using C++)
    std::vector<double*> trdraw(nkeeptrain);
    std::vector<double*> tedraw(nkeeptest);
    std::vector<double*> bdraw(nkeeptrain+nskip);
-   vector<double*> sdraw(nd+burn);
+   std::vector<double*> wtsdraw(nkeeptrain+nskip);
+   std::vector<double*> botdraw(nkeeptrain+nskip);
+   vector<double> sdraw(nd+burn),tadraw(nd+burn),tbdraw(nd+burn),nbots(nd+burn);
 
    for(size_t i=0; i<nkeeptrain; ++i) trdraw[i]=&_trdraw[i*n];
    for(size_t i=0; i<nkeeptest; ++i) tedraw[i]=&_tedraw[i*np];
-   for(size_t i=0; i<nkeeptrain+nskip; ++i) bdraw[i]=&_bdraw[i*(p+1)];
+   for(size_t i=0; i<nkeeptrain+nskip; ++i) bdraw[i]=&_bdraw[i*p];
 
    std::vector< std::vector<size_t> > varcnt;
    std::vector< std::vector<double> > varprb;
@@ -276,18 +292,18 @@ void cplbart(
    bm.setdart(a,b,rho,aug,dart,theta,omega);
    //--------------------------------------------------
 //init
-   Eigen::VectorXd bv(p+1);   // beta for linear
-   Eigen::VectorXd mu(p+1);
+   Eigen::VectorXd bv(p);   // beta for linear
+   Eigen::VectorXd mu(p);
    mu.setConstant(mub);
    //Rcout << "Vector mu: " << mu << std::endl;
-   Eigen::MatrixXd Sigma(Eigen::MatrixXd::Identity(p+1,p+1)/taub);
+   Eigen::MatrixXd Sigma(Eigen::MatrixXd::Identity(p,p)/taub);
    bv=rnormXd(mu, Sigma);
 
-   Eigen::Map<const Eigen::MatrixXd> xm(ixl,p+1,n);
-   Eigen::Map<const Eigen::MatrixXd> xpm(ixlp,p+1,np);
+   Eigen::Map<const Eigen::MatrixXd> xm(ix,p,n);
+   Eigen::Map<const Eigen::MatrixXd> xpm(ixp,p,np);
    
    //update Sigma
-   Eigen::MatrixXd Tau((Eigen::MatrixXd(p+1,p+1).setZero().selfadjointView<Eigen::Lower>().rankUpdate(xm)));
+   Eigen::MatrixXd Tau((Eigen::MatrixXd(p,p).setZero().selfadjointView<Eigen::Lower>().rankUpdate(xm)));
    Tau = Tau + Sigma.inverse();
    Sigma = Tau.inverse();
 
@@ -324,24 +340,12 @@ void cplbart(
    int time1 = time(&tp);
    xinfo& xi = bm.getxinfo();
 
+   std::vector<double> kdraw(nd+burn);
+   std::vector<double> ssmu(nd+burn);
+
    for(size_t i=0;i<(nd+burn);i++) {
       if(i%printevery==0) printf("done %zu (out of %lu)\n",i,nd+burn);
       if(i==(burn/2)&&dart) bm.startdart();
-      //draw tau
-      std::vector<tree*> bnodes;
-      std::vector<double> vtheta;
-      for(size_t j=0;j<m;j++){
-	bm.gettree(j).getbots(bnodes);
-	for(size_t l=0;l<bnodes.size();l++){
-	  vtheta.push_back(bnodes[l]->gettheta());
-	}
-      }
-      double nb=static_cast<double>(vtheta.size());
-      double musq=std::inner_product( vtheta.begin(), vtheta.end(), vtheta.begin(), 0 );
-      double ta=3.58+ nb/2, tb=0.0186+musq/2;
-      tau = 1/sqrt(gen.gamma(ta,tb));
-      sdraw[i]= tau;
-      bm.settau(tau);
       //draw bart
       bm.draw(1., gen);
       bm.predict(p,n,ix,ibf);
@@ -352,15 +356,58 @@ void cplbart(
       
       //draw beta
       bv = rnormXd(mu, Sigma);
-      for(size_t k=0;k<p+1;k++) BDRAW(i,k)=bv(k);
+      for(size_t k=0;k<p;k++) BDRAW(i,k)=bv[k];
 
       xb = xmt*bv;
 
-  for(size_t k=0; k<n; k++){
-    if(iy[k]==0) iz[k]= -rtnorm(-bm.f(k), binaryOffset+xb(k), 1., gen);
-    else iz[k]=rtnorm(bm.f(k), -binaryOffset-xb(k), 1., gen);
-  }
-
+      for(size_t k=0; k<n; k++){
+	if(iy[k]==0) iz[k]= -rtnorm(-bm.f(k), binaryOffset+xb(k), 1., gen);
+	else iz[k]=rtnorm(bm.f(k), -binaryOffset-xb(k), 1., gen);
+      }
+      
+      //draw tau
+      std::vector<tree*> bnodes;
+      std::vector<double> vtheta;
+      for(size_t j=0;j<m;j++){
+	bm.gettree(j).getbots(bnodes);
+      }
+      for(size_t l=0;l<bnodes.size();l++){
+	vtheta.push_back(bnodes[l]->gettheta());
+      }
+      double nb=static_cast<int>(vtheta.size());
+      double musq=std::inner_product( vtheta.begin(), vtheta.end(), vtheta.begin(), 0.0L );
+      if (i>=preburn){
+      if(type!=1){
+	if(type==3){
+	  double dk[]={3,4,5,6,7,8,9};  
+	  std::vector<double> disp(sizeof(dk)/sizeof(dk[0]), 1);  //discrete uniform prior for tau
+	  for(size_t j=0;j<7;j++){
+//	    double taumu=50.*pow(dk[j]/3,2);
+//	    double nutor = pow(taumu,((nb/2)-1));
+//	    double detor = exp(-(musq/2)*taumu);
+	    double logtau  = (nb/2-1)*(log(50)+2*log(dk[j]/3))-musq/2*50*(pow(dk[j]/3,2)-5);
+	    disp[j] = exp(logtau);
+	    wtsdraw[i,j] = disp[j];
+	  }
+	  gen.set_wts(disp);
+	  tau = 3/(sqrt(50.)*dk[gen.discrete()]);  //discrete uniform posterior for tau
+	}
+	else{
+	  double ta=12.05+ nb/2, tb=0.0406+musq/2;  //gamma prior for tau
+	  if(type==2) tau = 1/sqrt(gen.gamma(ta,tb));  //gamma posterior for tau
+	  else tau = 1/sqrt(rtgamma(ta,tb,50.,gen));  //left truncated gamma for tau
+	  tadraw[i]=ta;
+	  tbdraw[i]=tb;
+	}
+	bm.settau(tau);
+      }
+      }
+      kdraw[i] = 3/(tau*sqrt(50));
+      sdraw[i] = tau;
+      nbots[i]=nb;
+      botdraw[i]= vtheta;
+      ssmu[i]=musq;
+  
       if(i>=burn) {
          if(nkeeptrain && (((i-burn+1) % skiptr) ==0)) {
             for(size_t k=0;k<n;k++) TRDRAW(trcnt,k)=bm.f(k)+xb(k); 
@@ -393,6 +440,7 @@ void cplbart(
 	    #endif
          }
       }
+      
    }
    int time2 = time(&tp);
    printf("time: %ds\n",time2-time1);
@@ -404,6 +452,7 @@ void cplbart(
 
    if(fhattest) delete[] fhattest;
    delete[] iz;
+   delete[] ibf;
 
 #ifndef NoRcpp
    //--------------------------------------------------
@@ -414,7 +463,14 @@ void cplbart(
    //ret["yhat.test.mean"]=temean;
    ret["yhat.test"]=tedraw;
    ret["beta.train"]=bdraw;
+   ret["bottoms"]=botdraw;
    ret["sigma.mu"]=sdraw;
+   ret["discrete.p"]=wtsdraw;
+   ret["gamma.a"]=tadraw;
+   ret["gamma.b"]=tbdraw;
+   ret["kdraw"]=kdraw;
+   ret["nbots"]=nbots;
+   ret["ssmu"]=ssmu;
    //ret["varcount"]=varcount;
    ret["varcount"]=varcnt;
    ret["varprob"]=varprb;

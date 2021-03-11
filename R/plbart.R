@@ -17,7 +17,7 @@
 ## https://www.R-project.org/Licenses/GPL-2
 
 plbart=function(
-x.train, y.train, x.test=matrix(0.0,0,0),
+x.train, y.train, x.test=matrix(0.0,0,0), type=1,
 sparse=FALSE, theta=0, omega=1,
 a=0.5, b=1, augment=FALSE, rho=NULL,
 xinfo=matrix(0.0,0,0), usequants=FALSE,
@@ -25,7 +25,7 @@ cont=FALSE, rm.const=TRUE,
 k=2.0, power=2.0, base=.95,
 binaryOffset=NULL, mub=0., taub=1e-6,
 ntree=50L, numcut=100L,
-ndpost=1000L, nskip=100L, keepevery=1L,
+ndpost=1000L, preb=300L, nskip=100L, keepevery=1L,
 nkeeptrain=ndpost, nkeeptest=ndpost,
 ##nkeeptestmean=ndpost,
 nkeeptreedraws=ndpost,
@@ -37,7 +37,13 @@ printevery=100L, transposed=FALSE
 #data
 n = length(y.train)
 
-if(length(binaryOffset)==0) binaryOffset=0
+if(length(binaryOffset)==0) {
+    full <- data.frame(y=y.train,x.train)
+    #glfml <- as.formula(paste("y",paste(names(full)[-1],collapse="+"),sep="~"))
+    fit <- glm(y~., data=full, family=binomial(link="probit"))
+    binaryOffset=fit$coef[1]+sum(fit$coef[-1]*colMeans(full[,-1]))
+    rm(full,fit)
+        }
 
 if(!transposed) {
     temp = bartModelMatrix(x.train, numcut, usequants=usequants,
@@ -61,8 +67,8 @@ else {
 }
 
     #covariate matrix for linear
-    xl.train=rbind(1,x.train) 
-    xl.test=rbind(1,x.test)
+    #xl.train=rbind(1,x.train) 
+    #xl.test=rbind(1,x.test)
     
 if(n!=ncol(x.train))
     stop('The length of y.train and the number of rows in x.train must be identical')
@@ -118,17 +124,19 @@ if((nkeeptreedraws!=0) & ((ndpost %% nkeeptreedraws) != 0)) {
 ptm <- proc.time()
 #call
 res = .Call("cplbart",
+            type,
             n,  #number of observations in training data
             p,  #dimension of x
             np, #number of observations in test data
             x.train,   #p*n training data x
-            xl.train,
+            #xl.train,
             y.train,   #n*1 training data y
             x.test,    #p*np test data x
-            xl.test,
+            #xl.test,
             ntree,
             numcut,
             ndpost*keepevery,
+            preb,
             nskip,
             power,
             base,

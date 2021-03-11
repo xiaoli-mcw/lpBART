@@ -1,5 +1,5 @@
 mc.plbart <- function(
-    x.train, y.train, x.test = matrix(0.0, 0L, 0L),
+    x.train, y.train, x.test = matrix(0.0, 0L, 0L), type=1,
     sparse=FALSE, theta=0, omega=1,
     a=0.5, b=1, augment=FALSE, rho=NULL,
     xinfo=matrix(0.0,0,0), usequants=FALSE,
@@ -8,7 +8,7 @@ mc.plbart <- function(
     power = 2.0, base = 0.95,
     binaryOffset = NULL, mub=0., taub=1e-6,
     ntree=50L, numcut=100L,
-    ndpost=1000L, nskip=100L,
+    ndpost=1000L, preb=300L, nskip=100L,
     keepevery=1L, printevery=100L,
     keeptrainfits=TRUE, transposed=FALSE,
 ##    treesaslists=FALSE,
@@ -22,6 +22,14 @@ mc.plbart <- function(
     RNGkind("L'Ecuyer-CMRG")
     set.seed(seed)
     parallel::mc.reset.stream()
+
+    if(length(binaryOffset)==0) {
+    full <- data.frame(y=y.train,x.train)
+    #glfml <- as.formula(paste("y",paste(names(full)[-1],collapse="+"),sep="~"))
+    fit <- glm(y~., data=full, family=binomial(link="probit"))
+    binaryOffset=fit$coef[1]+sum(fit$coef[-1]*colMeans(full[,-1]))
+    rm(full,fit)
+        }
 
     if(!transposed) {
         temp = bartModelMatrix(x.train, numcut, usequants=usequants,
@@ -55,14 +63,14 @@ mc.plbart <- function(
 
     for(i in 1:mc.cores) {
         parallel::mcparallel({psnice(value=nice);
-                  plbart(x.train=x.train, y.train=y.train, x.test=x.test,
+                  plbart(x.train=x.train, y.train=y.train, x.test=x.test, type=type,
                         sparse=sparse, theta=theta, omega=omega,
                         a=a, b=b, augment=augment, rho=rho,
                         xinfo=xinfo,
                         k=k, power=power, base=base,
                         binaryOffset=binaryOffset, mub=mub, taub=taub,
                         ntree=ntree, numcut=numcut,
-                        ndpost=mc.ndpost, nskip=nskip, keepevery=keepevery,
+                        ndpost=mc.ndpost, preb=preb, nskip=nskip, keepevery=keepevery,
                         ## nkeeptrain=mc.nkeep, nkeeptest=mc.nkeep,
                         ## nkeeptestmean=mc.nkeep, nkeeptreedraws=mc.nkeep,
                         printevery=printevery, transposed=TRUE)},
@@ -110,6 +118,8 @@ mc.plbart <- function(
                                          post.list[[i]]$beta.train)
                 post$sigma.mu <- rbind(post$sigma.mu,
                                        post.list[[i]]$sigma.mu)
+                post$kdraw <- rbind(post$kdraw,
+                                    post.list[[i]]$kdraw)
             }
 
             if(keeptestfits) {
