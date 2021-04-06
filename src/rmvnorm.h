@@ -42,6 +42,7 @@ Eigen::VectorXd rnormXd(int size, double mu, double sd) {
 
 Eigen::VectorXd rnormXd(Eigen::VectorXd &mu, Eigen::MatrixXd &Sigma)
 {
+  //Cholesky decomposition
   Eigen::MatrixXd L=Sigma.llt().matrixL();
 
   return L*rnormXd(mu.size())+mu;

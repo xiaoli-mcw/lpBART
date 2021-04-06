@@ -33,10 +33,10 @@ RcppExport SEXP cplbart(
    SEXP _ip,		//dimension of x
    SEXP _inp,		//number of observations in test data
    SEXP _ix,		//x, train,  pxn (transposed so rows are contiguous in memory)
-   //SEXP _ixl,           //x, train, (p+1)xn, added 1 for linear beta_0
+   SEXP _ixl,           //x, train, (p+1)xn, added 1 for linear beta_0
    SEXP _iy,		//y, train,  nx1
    SEXP _ixp,		//x, test, pxnp (transposed so rows are contiguous in memory)
-   //SEXP _ixlp,          //x, test, (p+1)xnp, added 1 for linear beta_0
+   SEXP _ixlp,          //x, test, (p+1)xnp, added 1 for linear beta_0
    SEXP _im,		//number of trees
    SEXP _inc,		//number of cut points
    SEXP _ind,		//number of kept draws (except for thinnning ..)
@@ -46,7 +46,7 @@ RcppExport SEXP cplbart(
    SEXP _ibase,
    SEXP _binaryOffset,
    SEXP _imub,        //prior mean of beta
-   SEXP _itaub,       //prior precision of beta
+   SEXP _ig,       //g prior of beta
    SEXP _itau,
    SEXP _idart,
    SEXP _itheta,
@@ -74,14 +74,14 @@ RcppExport SEXP cplbart(
    size_t np = Rcpp::as<int>(_inp);
    Rcpp::NumericVector  xv(_ix);
    double *ix = &xv[0];
-   //Rcpp::NumericVector xlv(_ixl);
-   //double *ixl = &xlv[0];
+   Rcpp::NumericVector xlv(_ixl);
+   double *ixl = &xlv[0];
    Rcpp::IntegerVector  yv(_iy); // binary
    int *iy = &yv[0];
    Rcpp::NumericVector  xpv(_ixp);
    double *ixp = &xpv[0];
-   //Rcpp::NumericVector xlpv(_ixlp);
-   //double *ixlp = &xlpv[0];
+   Rcpp::NumericVector xlpv(_ixlp);
+   double *ixlp = &xlpv[0];
    size_t m = Rcpp::as<int>(_im);
    //size_t nc = Rcpp::as<int>(_inc);
    Rcpp::IntegerVector _nc(_inc);
@@ -94,7 +94,7 @@ RcppExport SEXP cplbart(
    double binaryOffset = Rcpp::as<double>(_binaryOffset);
 
    double mub = Rcpp::as<double>(_imub);
-   double taub = Rcpp::as<double>(_itaub);
+   const double g = Rcpp::as<double>(_ig);
 
    double tau = Rcpp::as<double>(_itau);
 //   double rootM = sqrt(Rcpp::as<double>(_iM));
@@ -128,7 +128,7 @@ RcppExport SEXP cplbart(
 */
    Rcpp::NumericMatrix trdraw(nkeeptrain,n);
    Rcpp::NumericMatrix tedraw(nkeeptest,np);
-   Rcpp::NumericMatrix bdraw(nd+burn,p);
+   Rcpp::NumericMatrix bdraw(nd+burn,p+1);
    Rcpp::List botdraw(nd+burn);
    Rcpp::NumericMatrix wtsdraw(nd+burn, 7);
    Rcpp::NumericVector sdraw(nd+burn);
@@ -167,10 +167,10 @@ void cplbart(
    size_t p,		//dimension of x
    size_t np,		//number of observations in test data
    double* ix,		//x, train,  pxn (transposed so rows are contiguous in memory)
-   //double* ixl,
+   double* ixl,
    int* iy,		//y, train,  nx1
    double* ixp,		//x, test, pxnp (transposed so rows are contiguous in memory)
-   //double* ixlp,
+   double* ixlp,
    size_t m,		//number of trees
    int *numcut, //size_t nc,		//number of cut points
    size_t nd,		//number of kept draws (except for thinnning ..)
@@ -180,7 +180,7 @@ void cplbart(
    double alpha,
    double binaryOffset,
    double mub,
-   double taub,
+   const double g,
    double tau,
    bool dart,
    double theta,
@@ -218,7 +218,7 @@ void cplbart(
 
    for(size_t i=0; i<nkeeptrain; ++i) trdraw[i]=&_trdraw[i*n];
    for(size_t i=0; i<nkeeptest; ++i) tedraw[i]=&_tedraw[i*np];
-   for(size_t i=0; i<nkeeptrain+nskip; ++i) bdraw[i]=&_bdraw[i*p];
+   for(size_t i=0; i<nkeeptrain+nskip; ++i) bdraw[i]=&_bdraw[i*(p+1)];
 
    std::vector< std::vector<size_t> > varcnt;
    std::vector< std::vector<double> > varprb;
@@ -292,25 +292,33 @@ void cplbart(
    bm.setdart(a,b,rho,aug,dart,theta,omega);
    //--------------------------------------------------
 //init
-   Eigen::VectorXd bv(p);   // beta for linear
-   Eigen::VectorXd mu(p);
-   mu.setConstant(mub);
-   //Rcout << "Vector mu: " << mu << std::endl;
-   Eigen::MatrixXd Sigma(Eigen::MatrixXd::Identity(p,p)/taub);
-   bv=rnormXd(mu, Sigma);
-
    Eigen::Map<const Eigen::MatrixXd> xm(ix,p,n);
    Eigen::Map<const Eigen::MatrixXd> xpm(ixp,p,np);
-   
-   //update Sigma
-   Eigen::MatrixXd Tau((Eigen::MatrixXd(p,p).setZero().selfadjointView<Eigen::Lower>().rankUpdate(xm)));
-   Tau = Tau + Sigma.inverse();
-   Sigma = Tau.inverse();
-
+   Eigen::Map<const Eigen::MatrixXd> xlm(ixl,p,n);
+   Eigen::Map<const Eigen::MatrixXd> xlpm(ixlp,p,np);
    Eigen::MatrixXd xmt(xm.transpose());
    Eigen::MatrixXd xpmt(xpm.transpose());
-   Eigen::VectorXd xb(xmt*bv);
-   Eigen::VectorXd xpb(xpmt*bv);
+   Eigen::MatrixXd xlmt(xlm.transpose());
+   Eigen::MatrixXd xlpmt(xlpm.transpose());
+
+   Eigen::VectorXd bv(p+1);   // beta for linear
+   Eigen::VectorXd mu(p+1);
+   mu.setConstant(mub);
+   //Rcout << "Vector mu: " << mu << std::endl;
+   //Eigen::MatrixXd Sigma(Eigen::MatrixXd::Identity(p,p)/taub);
+   Eigen::MatrixXd Sigma(xlm*xlmt);
+   Sigma = g*Sigma.inverse();
+   bv=rnormXd(mu, Sigma);
+   
+   Eigen::VectorXd xb(xlmt*bv);
+   Eigen::VectorXd xpb(xlpmt*bv);
+   
+   //update Sigma
+   //Eigen::MatrixXd Tau((Eigen::MatrixXd(p,p).setZero().selfadjointView<Eigen::Lower>().rankUpdate(xm)));
+   //Tau = Tau + Sigma.inverse();
+   //Sigma = Tau.inverse();
+   Sigma = Sigma/(g+1);
+
 
   for(size_t k=0; k<n; k++) {
     if(iy[k]==0) iz[k]= -rtnorm(0., binaryOffset+xb(k), 1., gen);
@@ -352,17 +360,20 @@ void cplbart(
       //keep track of linear residual
       res=zv+xmt*bv-bf;
       //update mu for beta
-      mu=Sigma*(xm*res + mu*taub);
+      //mu=Sigma*(xm*res + mu*taub);
+      mu = Sigma*xm*res + mu/(g+1);
       
       //draw beta
       bv = rnormXd(mu, Sigma);
-      for(size_t k=0;k<p;k++) BDRAW(i,k)=bv[k];
+      for(size_t k=0;k<p+1;k++) BDRAW(i,k)=bv[k];
 
-      xb = xmt*bv;
+      xb = xlmt*bv;
 
       for(size_t k=0; k<n; k++){
 	if(iy[k]==0) iz[k]= -rtnorm(-bm.f(k), binaryOffset+xb(k), 1., gen);
 	else iz[k]=rtnorm(bm.f(k), -binaryOffset-xb(k), 1., gen);
+//	if(iy[k]==0) iz[k]= -rtnorm(0., binaryOffset+xb(k), 1., gen);
+//	else iz[k]=rtnorm(0., -binaryOffset-xb(k), 1., gen);
       }
       
       //draw tau
@@ -416,7 +427,7 @@ void cplbart(
          keeptest = nkeeptest && (((i-burn+1) % skipte) ==0) && np;
          if(keeptest) {
 	   bm.predict(p,np,ixp,fhattest);
-	   xpb = xpmt*bv;
+	   xpb = xlpmt*bv;
             for(size_t k=0;k<np;k++) TEDRAW(tecnt,k)=fhattest[k]+xpb(k);
             tecnt+=1;
          }

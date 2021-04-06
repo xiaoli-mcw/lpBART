@@ -6,7 +6,7 @@ mc.plbart <- function(
     cont=FALSE, rm.const=TRUE,
     k = 2.0, ## BEWARE: do NOT use k for other purposes below
     power = 2.0, base = 0.95,
-    binaryOffset = NULL, mub=0., taub=1e-6,
+    binaryOffset = NULL, mub=0., g=NULL,
     ntree=50L, numcut=100L,
     ndpost=1000L, preb=300L, nskip=100L,
     keepevery=1L, printevery=100L,
@@ -27,7 +27,7 @@ mc.plbart <- function(
     full <- data.frame(y=y.train,x.train)
     #glfml <- as.formula(paste("y",paste(names(full)[-1],collapse="+"),sep="~"))
     fit <- glm(y~., data=full, family=binomial(link="probit"))
-    binaryOffset=fit$coef[1]+sum(fit$coef[-1]*colMeans(full[,-1]))
+    binaryOffset=fit$coef[1]
     rm(full,fit)
         }
 
@@ -68,7 +68,7 @@ mc.plbart <- function(
                         a=a, b=b, augment=augment, rho=rho,
                         xinfo=xinfo,
                         k=k, power=power, base=base,
-                        binaryOffset=binaryOffset, mub=mub, taub=taub,
+                        binaryOffset=binaryOffset, mub=mub, g=g,
                         ntree=ntree, numcut=numcut,
                         ndpost=mc.ndpost, preb=preb, nskip=nskip, keepevery=keepevery,
                         ## nkeeptrain=mc.nkeep, nkeeptest=mc.nkeep,
