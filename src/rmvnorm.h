@@ -12,7 +12,7 @@ RNGScope scope;
 
 Eigen::VectorXd rnormXd(int size, double mu=0., double sd=1.);
 
-Eigen::VectorXd rnormXd(Eigen::VectorXd &mu, Eigen::MatrixXd &Sigma);
+Eigen::VectorXd rnormXd(const Eigen::VectorXd &mu, Eigen::MatrixXd &Sigma);
 
 //#ifndef NoRcpp
 
@@ -40,7 +40,7 @@ Eigen::VectorXd rnormXd(int size, double mu, double sd) {
   return as<Eigen::VectorXd>(rnorm(size, mu, sd));
 }
 
-Eigen::VectorXd rnormXd(Eigen::VectorXd &mu, Eigen::MatrixXd &Sigma)
+Eigen::VectorXd rnormXd(const Eigen::VectorXd &mu, Eigen::MatrixXd &Sigma)
 {
   //Cholesky decomposition
   Eigen::MatrixXd L=Sigma.llt().matrixL();

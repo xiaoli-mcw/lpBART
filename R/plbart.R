@@ -23,7 +23,7 @@ a=0.5, b=1, augment=FALSE, rho=NULL,
 xinfo=matrix(0.0,0,0), usequants=FALSE,
 cont=FALSE, rm.const=TRUE,
 k=2.0, power=2.0, base=.95,
-binaryOffset=NULL, mub=0., g=NULL,
+binaryOffset=NULL, mub=NULL, g=NULL,
 ntree=50L, numcut=100L,
 ndpost=1000L, preb=300L, nskip=100L, keepevery=1L,
 nkeeptrain=ndpost, nkeeptest=ndpost,
@@ -41,7 +41,8 @@ if(length(binaryOffset)==0) {
     full <- data.frame(y=y.train,x.train)
     #glfml <- as.formula(paste("y",paste(names(full)[-1],collapse="+"),sep="~"))
     fit <- glm(y~., data=full, family=binomial(link="probit"))
-    binaryOffset=fit$coef[1]
+    binaryOffset=0
+    if(is.null(mub)) mub <- fit$coef
     rm(full,fit)
         }
 
@@ -79,7 +80,8 @@ if(length(rho)==0) rho <- p
 if(length(rm.const)==0) rm.const <- 1:p
 if(length(grp)==0) grp <- 1:p
 
-    if(is.null(g)) g <- sqrt(n)
+    if(is.null(g)) g <- n
+    
 
 #--------------------------------------------------
 #set  nkeeps for thinning

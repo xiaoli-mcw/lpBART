@@ -25,7 +25,6 @@
 #define TRDRAW(a, b) trdraw(a, b)
 #define TEDRAW(a, b) tedraw(a, b)
 #define BDRAW(a, b) bdraw(a, b)
-#define WTSDRAW(a, b) wtsdraw(a, b)
 
 RcppExport SEXP cplbart(
    SEXP _type,          //1:fixed tau, 2:gamma prior, 3:discrete unif, 4:tgamma prior
@@ -92,8 +91,8 @@ RcppExport SEXP cplbart(
    double mybeta = Rcpp::as<double>(_ipower);
    double alpha = Rcpp::as<double>(_ibase);
    double binaryOffset = Rcpp::as<double>(_binaryOffset);
-
-   double mub = Rcpp::as<double>(_imub);
+   Rcpp::NumericVector mub(_imub);
+   double *imub = &mub[0];
    const double g = Rcpp::as<double>(_ig);
 
    double tau = Rcpp::as<double>(_itau);
@@ -130,7 +129,6 @@ RcppExport SEXP cplbart(
    Rcpp::NumericMatrix tedraw(nkeeptest,np);
    Rcpp::NumericMatrix bdraw(nd+burn,p+1);
    Rcpp::List botdraw(nd+burn);
-   Rcpp::NumericMatrix wtsdraw(nd+burn, 7);
    Rcpp::NumericVector sdraw(nd+burn);
    Rcpp::NumericVector tadraw(nd+burn);
    Rcpp::NumericVector tbdraw(nd+burn);
@@ -159,7 +157,6 @@ RcppExport SEXP cplbart(
 #define TRDRAW(a, b) trdraw[a][b]
 #define TEDRAW(a, b) tedraw[a][b]
 #define BDRAW(a, b) bdraw[a][b]
-#define WTSDRAW(a, b) wtsdraw[a][b]
 
 void cplbart(
    int type,            //1:fixed tau, 2:gamma prior, 3:discrete unif, 4:tgamma prior
@@ -212,7 +209,6 @@ void cplbart(
    std::vector<double*> trdraw(nkeeptrain);
    std::vector<double*> tedraw(nkeeptest);
    std::vector<double*> bdraw(nkeeptrain+nskip);
-   std::vector<double*> wtsdraw(nkeeptrain+nskip);
    std::vector<double*> botdraw(nkeeptrain+nskip);
    vector<double> sdraw(nd+burn),tadraw(nd+burn),tbdraw(nd+burn),nbots(nd+burn);
 
@@ -294,21 +290,22 @@ void cplbart(
 //init
    Eigen::Map<const Eigen::MatrixXd> xm(ix,p,n);
    Eigen::Map<const Eigen::MatrixXd> xpm(ixp,p,np);
-   Eigen::Map<const Eigen::MatrixXd> xlm(ixl,p,n);
-   Eigen::Map<const Eigen::MatrixXd> xlpm(ixlp,p,np);
+   Eigen::Map<const Eigen::MatrixXd> xlm(ixl,p+1,n);
+   Eigen::Map<const Eigen::MatrixXd> xlpm(ixlp,p+1,np);
    Eigen::MatrixXd xmt(xm.transpose());
    Eigen::MatrixXd xpmt(xpm.transpose());
    Eigen::MatrixXd xlmt(xlm.transpose());
    Eigen::MatrixXd xlpmt(xlpm.transpose());
 
    Eigen::VectorXd bv(p+1);   // beta for linear
-   Eigen::VectorXd mu(p+1);
-   mu.setConstant(mub);
+   Eigen::Map<Eigen::VectorXd> mu(imub,p+1);
+   //mu=mub;
    //Rcout << "Vector mu: " << mu << std::endl;
    //Eigen::MatrixXd Sigma(Eigen::MatrixXd::Identity(p,p)/taub);
    Eigen::MatrixXd Sigma(xlm*xlmt);
    Sigma = g*Sigma.inverse();
-   bv=rnormXd(mu, Sigma);
+   //bv=rnormXd(mu, Sigma);
+   bv=mu;
    
    Eigen::VectorXd xb(xlmt*bv);
    Eigen::VectorXd xpb(xlpmt*bv);
@@ -358,14 +355,17 @@ void cplbart(
       bm.draw(1., gen);
       bm.predict(p,n,ix,ibf);
       //keep track of linear residual
-      res=zv+xmt*bv-bf;
+      res=zv+xlmt*bv-bf;
+      //if(i>=preburn){
       //update mu for beta
       //mu=Sigma*(xm*res + mu*taub);
-      mu = Sigma*xm*res + mu/(g+1);
+      mu = Sigma*xlm*res;
+// + mu/(g+1);
       
       //draw beta
       bv = rnormXd(mu, Sigma);
       for(size_t k=0;k<p+1;k++) BDRAW(i,k)=bv[k];
+      //}
 
       xb = xlmt*bv;
 
@@ -387,7 +387,7 @@ void cplbart(
       }
       double nb=static_cast<int>(vtheta.size());
       double musq=std::inner_product( vtheta.begin(), vtheta.end(), vtheta.begin(), 0.0L );
-      if (i>=preburn){
+      //if (i>=preburn){
       if(type!=1){
 	if(type==3){
 	  double dk[]={3,4,5,6,7,8,9};  
@@ -398,7 +398,7 @@ void cplbart(
 //	    double detor = exp(-(musq/2)*taumu);
 	    double logtau  = (nb/2-1)*(log(50)+2*log(dk[j]/3))-musq/2*50*(pow(dk[j]/3,2)-5);
 	    disp[j] = exp(logtau);
-	    wtsdraw[i,j] = disp[j];
+	    //wtsdraw[i,j] = disp[j];
 	  }
 	  gen.set_wts(disp);
 	  tau = 3/(sqrt(50.)*dk[gen.discrete()]);  //discrete uniform posterior for tau
@@ -412,7 +412,7 @@ void cplbart(
 	}
 	bm.settau(tau);
       }
-      }
+      //}
       kdraw[i] = 3/(tau*sqrt(50));
       sdraw[i] = tau;
       nbots[i]=nb;
@@ -476,7 +476,7 @@ void cplbart(
    ret["beta.train"]=bdraw;
    ret["bottoms"]=botdraw;
    ret["sigma.mu"]=sdraw;
-   ret["discrete.p"]=wtsdraw;
+   //ret["discrete.p"]=wtsdraw;
    ret["gamma.a"]=tadraw;
    ret["gamma.b"]=tbdraw;
    ret["kdraw"]=kdraw;

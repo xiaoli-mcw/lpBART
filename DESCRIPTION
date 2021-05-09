@@ -9,5 +9,5 @@ Description: More details about what the package does. See
        <http://cran.r-project.org/doc/manuals/r-release/R-exts.html#The-DESCRIPTION-file>
        for details on how to write this part.
 License: GPL (>= 2)
-Imports: Rcpp (>= 1.0.4.6), BART3, RcppEigen, parallel, tools
+Imports: Rcpp (>= 1.0.4.6), BART3, arm, RcppEigen, parallel, tools
 LinkingTo: Rcpp, RcppEigen, BART3
