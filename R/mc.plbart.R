@@ -1,15 +1,14 @@
 mc.plbart <- function(
-    x.train, y.train, x.test = matrix(0.0, 0L, 0L), type=1,
+    x.train, y.train, x.test = matrix(0.0, 0L, 0L), 
     sparse=FALSE, theta=0, omega=1,
     a=0.5, b=1, augment=FALSE, rho=NULL,
     xinfo=matrix(0.0,0,0), usequants=FALSE,
     cont=FALSE, rm.const=TRUE,
     k = 2.0, ## BEWARE: do NOT use k for other purposes below
-    power = 2.0, base = 0.95,
-    binaryOffset = NULL, mub=NULL, g=NULL,
+    power = 2.0, base = 0.95, mub=NULL, g=NULL,
     ntree=50L, numcut=100L,
-    ndpost=1000L, preb=300L, nskip=100L,
-    keepevery=1L, printevery=100L,
+    ndpost=1000L, nskip=500L,
+    keepevery=5L, printevery=100L,
     keeptrainfits=TRUE, transposed=FALSE,
 ##    treesaslists=FALSE,
     mc.cores = 2L, nice = 19L,
@@ -23,14 +22,14 @@ mc.plbart <- function(
     set.seed(seed)
     parallel::mc.reset.stream()
 
-    if(length(binaryOffset)==0) {
-    full <- data.frame(y=y.train,x.train)
+    temp.xtrain <- cbind(1, x.train)
+    xl.train <- temp.xtrain[, qr(temp.xtrain)$pivot[seq_len(qr(temp.xtrain)$rank)]]
+    full <- data.frame(y=y.train,xl.train[,-1])
     #glfml <- as.formula(paste("y",paste(names(full)[-1],collapse="+"),sep="~"))
     fit <- glm(y~., data=full, family=binomial(link="probit"))
-    binaryOffset=0
     if(is.null(mub)) mub <- fit$coef
-    rm(full,fit)
-        }
+    rm(full,fit,temp.xtrain,xl.train)
+        
 
     if(!transposed) {
         temp = bartModelMatrix(x.train, numcut, usequants=usequants,
@@ -64,14 +63,13 @@ mc.plbart <- function(
 
     for(i in 1:mc.cores) {
         parallel::mcparallel({psnice(value=nice);
-                  plbart(x.train=x.train, y.train=y.train, x.test=x.test, type=type,
+                  plbart(x.train=x.train, y.train=y.train, x.test=x.test,
                         sparse=sparse, theta=theta, omega=omega,
                         a=a, b=b, augment=augment, rho=rho,
                         xinfo=xinfo,
-                        k=k, power=power, base=base,
-                        binaryOffset=binaryOffset, mub=mub, g=g,
+                        k=k, power=power, base=base, mub=mub, g=g,
                         ntree=ntree, numcut=numcut,
-                        ndpost=mc.ndpost, preb=preb, nskip=nskip, keepevery=keepevery,
+                        ndpost=mc.ndpost, nskip=nskip, keepevery=keepevery,
                         ## nkeeptrain=mc.nkeep, nkeeptest=mc.nkeep,
                         ## nkeeptestmean=mc.nkeep, nkeeptreedraws=mc.nkeep,
                         printevery=printevery, transposed=TRUE)},

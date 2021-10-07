@@ -17,15 +17,14 @@
 ## https://www.R-project.org/Licenses/GPL-2
 
 plbart=function(
-x.train, y.train, x.test=matrix(0.0,0,0), type=1,
+x.train, y.train, x.test=matrix(0.0,0,0),
 sparse=FALSE, theta=0, omega=1,
 a=0.5, b=1, augment=FALSE, rho=NULL,
 xinfo=matrix(0.0,0,0), usequants=FALSE,
 cont=FALSE, rm.const=TRUE,
-k=2.0, power=2.0, base=.95,
-binaryOffset=NULL, mub=NULL, g=NULL,
+k=2.0, power=2.0, base=.95, mub=NULL, g=NULL,
 ntree=50L, numcut=100L,
-ndpost=1000L, preb=300L, nskip=100L, keepevery=1L,
+ndpost=1000L, nskip=500L, keepevery=5L,
 nkeeptrain=ndpost, nkeeptest=ndpost,
 ##nkeeptestmean=ndpost,
 nkeeptreedraws=ndpost,
@@ -37,14 +36,15 @@ printevery=100L, transposed=FALSE
 #data
 n = length(y.train)
 
-if(length(binaryOffset)==0) {
-    full <- data.frame(y=y.train,x.train)
+    if(!transposed){
+        temp.xtrain <- cbind(1, x.train)
+        xl.train <- temp.xtrain[, qr(temp.xtrain)$pivot[seq_len(qr(temp.xtrain)$rank)]]
+    full <- data.frame(y=y.train,xl.train[,-1])
     #glfml <- as.formula(paste("y",paste(names(full)[-1],collapse="+"),sep="~"))
     fit <- glm(y~., data=full, family=binomial(link="probit"))
-    binaryOffset=0
     if(is.null(mub)) mub <- fit$coef
-    rm(full,fit)
-        }
+    rm(full,fit,temp.xtrain,xl.train)
+    }
 
 if(!transposed) {
     temp = bartModelMatrix(x.train, numcut, usequants=usequants,
@@ -66,15 +66,18 @@ else {
     rm.const <- NULL
     grp <- NULL
 }
-
-    #covariate matrix for linear
-    xl.train=rbind(1,x.train) 
-    xl.test=rbind(1,x.test)
     
 if(n!=ncol(x.train))
     stop('The length of y.train and the number of rows in x.train must be identical')
 
+    #covariate matrix for linear
+    temp.xtrain <- cbind(1, t(x.train))
+    xl.train <- t(temp.xtrain[, qr(temp.xtrain)$pivot[seq_len(qr(temp.xtrain)$rank)]])
+    temp.xtest <- cbind(1, t(x.test))
+    xl.test <- t(temp.xtest[, qr(temp.xtest)$pivot[seq_len(qr(temp.xtest)$rank)]])
+    
 p = nrow(x.train)
+    l = nrow(xl.train)
 np = ncol(x.test)
 if(length(rho)==0) rho <- p
 if(length(rm.const)==0) rm.const <- 1:p
@@ -128,9 +131,9 @@ if((nkeeptreedraws!=0) & ((ndpost %% nkeeptreedraws) != 0)) {
 ptm <- proc.time()
 #call
 res = .Call("cplbart",
-            type,
             n,  #number of observations in training data
             p,  #dimension of x
+            l,  #dimension of linear x
             np, #number of observations in test data
             x.train,   #p*n training data x
             xl.train,
@@ -140,11 +143,9 @@ res = .Call("cplbart",
             ntree,
             numcut,
             ndpost*keepevery,
-            preb,
             nskip,
             power,
             base,
-            binaryOffset,
             mub,
             g,
             3/(k*sqrt(ntree)),
@@ -170,7 +171,7 @@ res$proc.time <- proc.time()-ptm
 if(nkeeptrain>0) {
     ##res$yhat.train.mean <- NULL
     ##res$yhat.train.mean = res$yhat.train.mean+binaryOffset
-    res$yhat.train = res$yhat.train+binaryOffset
+    res$yhat.train = res$yhat.train
     res$prob.train = pnorm(res$yhat.train)
     res$prob.train.mean <- apply(res$prob.train, 2, mean)
 } else {
@@ -181,7 +182,7 @@ if(nkeeptrain>0) {
 if(np>0) {
     ##res$yhat.test.mean <- NULL
     ##res$yhat.test.mean = res$yhat.test.mean+binaryOffset
-    res$yhat.test = res$yhat.test+binaryOffset
+    res$yhat.test = res$yhat.test
     res$prob.test = pnorm(res$yhat.test)
     res$prob.test.mean <- apply(res$prob.test, 2, mean)
 } else {
@@ -197,7 +198,6 @@ dimnames(res$varprob)[[2]] = as.list(dimnames(x.train)[[1]])
 res$varcount.mean <- apply(res$varcount, 2, mean)
 res$varprob.mean <- apply(res$varprob, 2, mean)
 res$rm.const <- rm.const
-res$binaryOffset=binaryOffset
 attr(res, 'class') <- 'plbart'
 return(res)
 }
