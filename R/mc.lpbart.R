@@ -1,4 +1,4 @@
-mc.plbart <- function(
+mc.lpbart <- function(
     x.train, y.train, x.test = matrix(0.0, 0L, 0L), 
     sparse=FALSE, theta=0, omega=1,
     a=0.5, b=1, augment=FALSE, rho=NULL,
@@ -63,7 +63,7 @@ mc.plbart <- function(
 
     for(i in 1:mc.cores) {
         parallel::mcparallel({psnice(value=nice);
-                  plbart(x.train=x.train, y.train=y.train, x.test=x.test,
+                  lpbart(x.train=x.train, y.train=y.train, x.test=x.test,
                         sparse=sparse, theta=theta, omega=omega,
                         a=a, b=b, augment=augment, rho=rho,
                         xinfo=xinfo,
@@ -83,7 +83,7 @@ mc.plbart <- function(
 
     post <- post.list[[1]]
 
-    if(mc.cores==1 | attr(post, 'class')!='plbart') return(post)
+    if(mc.cores==1 | attr(post, 'class')!='lpbart') return(post)
     else {
         if(class(rm.const)[1]!='logical') post$rm.const <- rm.const
 
@@ -154,7 +154,7 @@ mc.plbart <- function(
         post$varcount.mean <- apply(post$varcount, 2, mean)
         post$varprob.mean <- apply(post$varprob, 2, mean)
 
-        attr(post, 'class') <- 'plbart'
+        attr(post, 'class') <- 'lpbart'
 
         return(post)
     }

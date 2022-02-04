@@ -16,7 +16,7 @@
 ## along with this program; if not, a copy is available at
 ## https://www.R-project.org/Licenses/GPL-2
 
-plbart=function(
+lpbart=function(
 x.train, y.train, x.test=matrix(0.0,0,0),
 sparse=FALSE, theta=0, omega=1,
 a=0.5, b=1, augment=FALSE, rho=NULL,
@@ -130,7 +130,7 @@ if((nkeeptreedraws!=0) & ((ndpost %% nkeeptreedraws) != 0)) {
 #--------------------------------------------------
 ptm <- proc.time()
 #call
-res = .Call("cplbart",
+res = .Call("clpbart",
             n,  #number of observations in training data
             p,  #dimension of x
             l,  #dimension of linear x
@@ -198,6 +198,6 @@ dimnames(res$varprob)[[2]] = as.list(dimnames(x.train)[[1]])
 res$varcount.mean <- apply(res$varcount, 2, mean)
 res$varprob.mean <- apply(res$varprob, 2, mean)
 res$rm.const <- rm.const
-attr(res, 'class') <- 'plbart'
+attr(res, 'class') <- 'lpbart'
 return(res)
 }
