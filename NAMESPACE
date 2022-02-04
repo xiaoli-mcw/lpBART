@@ -1,4 +1,4 @@
-useDynLib('REtry', .registration=TRUE)
+useDynLib('lpBART', .registration=TRUE)
 import(RcppEigen)
 importFrom(Rcpp, evalCpp)
 #exportPattern("^[[:alpha:]]+")
