@@ -10,7 +10,7 @@ After **BART3** installed, use the following code to install **lpBART** directly
 > install_github("xiaoli-mcw/lpBART")
 
 ## How to run it?
-
+We will use the simulated data set *binmix* that comes with **lpBART** package, to show how to use this package. 
 
 ## What can be done with the outputs?
 
