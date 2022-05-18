@@ -1,5 +1,4 @@
-bmabart <- function(formula, family=gaussian, data, weights, subset,
-                    na.action, start=NULL, prior.df=Inf, prior.p=0.5,
+bmabart <- function(formula, family=gaussian, data, prior.df=Inf, prior.p=0.5,
                     x.test=matrix(0,0,0), sparse=FALSE, ndpost=1000L,
                     nskip=100L, mc.cores=2L, seed=999){
     n <- nrow(data)
@@ -23,14 +22,17 @@ bmabart <- function(formula, family=gaussian, data, weights, subset,
     diffLPML <- LPML.arm-LPML.pb
     p.arm <- prior.p/(exp(-diffLPML)*(1-prior.p)+prior.p)
 
-    arm.prob.test <- apply(postb, 1, FUN=function(x) pnorm(matrix(x,nrow=1)%*%rbind(1,t(x.test))))
-    arm.prob.test <- t(arm.prob.test)
     set.seed(seed)
     index <- rbinom(ndpost,1,p.arm)
     prob.train <- rbind(arm.prob.train[index==1,],fitpb$prob.train[index==0,])
-    prob.test <- rbind(arm.prob.test[index==1,],fitpb$prob.test[index==0,])
-    res <- list(prior.GLM=prior.p, prior.BART=1-prior.p, post.GLM=p.arm, post.BART=1-p.arm, prob.train=prob.train, prob.test=prob.test)
+    res <- list(prior.GLM=prior.p, prior.BART=1-prior.p, post.GLM=p.arm, post.BART=1-p.arm, prob.train=prob.train)
     res$prob.train.mean <- apply(prob.train, 2, mean)
-    res$prob.test.mean <- apply(prob.test, 2, mean)
+
+    if (length(x.test)>0) {
+        arm.prob.test <- apply(postb, 1, FUN=function(x) pnorm(matrix(x,nrow=1)%*%rbind(1,t(x.test))))
+        arm.prob.test <- t(arm.prob.test)
+        res$prob.test <- rbind(arm.prob.test[index==1,],fitpb$prob.test[index==0,])
+        res$prob.test.mean <- apply(res$prob.test, 2, mean)
+    }
     return(res)
 }

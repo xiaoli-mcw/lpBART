@@ -55,10 +55,8 @@ RcppExport SEXP clpbart(
    SEXP _iaug,
    SEXP _inkeeptrain,
    SEXP _inkeeptest,
-//   SEXP _inkeeptestme,
    SEXP _inkeeptreedraws,
    SEXP _inprintevery,
-//   SEXP _treesaslists,
    SEXP _Xinfo
 )
 {
@@ -80,7 +78,6 @@ RcppExport SEXP clpbart(
    Rcpp::NumericVector xlpv(_ixlp);
    double *ixlp = &xlpv[0];
    size_t m = Rcpp::as<int>(_im);
-   //size_t nc = Rcpp::as<int>(_inc);
    Rcpp::IntegerVector _nc(_inc);
    int *numcut = &_nc[0];
    size_t nd = Rcpp::as<int>(_ind);
@@ -90,44 +87,30 @@ RcppExport SEXP clpbart(
    Rcpp::NumericVector mub(_imub);
    double *imub = &mub[0];
    const double g = Rcpp::as<double>(_ig);
-
    double tau = Rcpp::as<double>(_itau);
-//   double rootM = sqrt(Rcpp::as<double>(_iM));
    bool dart;
    if(Rcpp::as<int>(_idart)==1) dart=true;
    else dart=false;
+   double theta = Rcpp::as<double>(_itheta);
+   double omega = Rcpp::as<double>(_iomega);
+   Rcpp::IntegerVector _grp(_igrp);
    double a = Rcpp::as<double>(_ia);
    double b = Rcpp::as<double>(_ib);
    double rho = Rcpp::as<double>(_irho);
    bool aug;
    if(Rcpp::as<int>(_iaug)==1) aug=true;
    else aug=false;
-   double theta = Rcpp::as<double>(_itheta);
-   double omega = Rcpp::as<double>(_iomega);
-   Rcpp::IntegerVector _grp(_igrp);
-//   int *grp = &_grp[0];
    size_t nkeeptrain = Rcpp::as<int>(_inkeeptrain);
    size_t nkeeptest = Rcpp::as<int>(_inkeeptest);
-//   size_t nkeeptestme = Rcpp::as<int>(_inkeeptestme);
    size_t nkeeptreedraws = Rcpp::as<int>(_inkeeptreedraws);
    size_t printevery = Rcpp::as<int>(_inprintevery);
-//   int treesaslists = Rcpp::as<int>(_treesaslists);
    Rcpp::NumericMatrix Xinfo(_Xinfo);
-   //Rcpp::List Xinfo(_Xinfo);
-//   Rcpp::IntegerMatrix varcount(nkeeptreedraws, p);
-
-   //return data structures (using Rcpp)
-/*
-   Rcpp::NumericVector trmean(n); //train
-   Rcpp::NumericVector temean(np);
-*/
    Rcpp::NumericMatrix trdraw(nkeeptrain,n);
    Rcpp::NumericMatrix tedraw(nkeeptest,np);
    Rcpp::NumericMatrix bdraw(nd+burn,l);
    Rcpp::NumericVector sdraw(nd+burn);
    Rcpp::NumericVector tadraw(nd+burn);
    Rcpp::NumericVector tbdraw(nd+burn);
-//   Rcpp::List list_of_lists(nkeeptreedraws*treesaslists);
    Rcpp::NumericMatrix varprb(nkeeptreedraws,p);
    Rcpp::IntegerMatrix varcnt(nkeeptreedraws,p);
 
@@ -141,7 +124,6 @@ RcppExport SEXP clpbart(
      _xi.resize(p);
      for(size_t i=0;i<p;i++) {
        _xi[i].resize(numcut[i]);
-       //Rcpp::IntegerVector cutpts(Xinfo[i]);
        for(size_t j=0;j<numcut[i];j++) _xi[i][j]=Xinfo(i, j);
      }
      bm.setxinfo(_xi);
@@ -181,16 +163,10 @@ void clpbart(
    bool aug,
    size_t nkeeptrain,
    size_t nkeeptest,
-   //size_t nkeeptestme,
    size_t nkeeptreedraws,
    size_t printevery,
-//   int treesaslists,
    unsigned int n1, // additional parameters needed to call from C++
    unsigned int n2,
-/*
-   double* trmean,
-   double* temean,
-*/
    double* _trdraw,
    double* _tedraw,
    double* _bdraw,
@@ -216,11 +192,6 @@ void clpbart(
    bart bm(m);
 #endif
 
-/*
-   for(size_t i=0; i<n; ++i) trmean[i]=0.0;
-   for(size_t i=0; i<np; ++i) temean[i]=0.0;
-*/
-
    double* iz = new double[n];
    double* ibf = new double[n];
 
@@ -234,15 +205,10 @@ void clpbart(
    printf("*****Into main of lpbart\n");
 
    size_t skiptr,skipte,skiptreedraws;
-   //size_t skiptr,skipte,skipteme,skiptreedraws;
    if(nkeeptrain) {skiptr=nd/nkeeptrain;}
    else skiptr = nd+1;
    if(nkeeptest) {skipte=nd/nkeeptest;}
    else skipte=nd+1;
-/*
-   if(nkeeptestme) {skipteme=nd/nkeeptestme;}
-   else skipteme=nd+1;
-*/
    if(nkeeptreedraws) {skiptreedraws = nd/nkeeptreedraws;}
    else skiptreedraws=nd+1;
 
